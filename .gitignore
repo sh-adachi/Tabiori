@@ -1,0 +1,16 @@
+.DS_Store
+.build/
+.build-core/
+.swiftpm/
+.derivedData/
+DerivedData/
+build/
+*.xcresult
+*.xcuserstate
+xcuserdata/
+*.ipa
+*.dSYM/
+*.xcarchive/
+Artifacts/*.log
+Artifacts/current.png
+Artifacts/*.log
