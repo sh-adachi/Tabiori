@@ -181,9 +181,9 @@ private struct PlaceSearchResult: Identifiable {
 extension Place {
     var coordinate: CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: latitude, longitude: longitude) }
 
-    func openDirections() {
+    func openDirections(mode: DirectionsMode = .transit) {
         let item = MKMapItem(placemark: MKPlacemark(coordinate: coordinate))
         item.name = name
-        item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeTransit])
+        item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: mode.mapsValue])
     }
 }

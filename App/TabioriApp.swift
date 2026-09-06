@@ -10,6 +10,7 @@ struct TabioriApp: App {
                 .environment(store)
                 .environment(\.locale, Locale(identifier: "ja_JP"))
                 .tint(AppTheme.teal)
+                .preferredColorScheme(store.settings.appearance.colorScheme)
         }
     }
 }

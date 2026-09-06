@@ -3,7 +3,7 @@ import SwiftUI
 struct TripsView: View {
     @Environment(AppStore.self) private var store
     @State private var showEditor = false
-    @State private var showAbout = false
+    @State private var showSettings = false
     @State private var query = ""
     @State private var filter = TripFilter.upcoming
 
@@ -58,7 +58,8 @@ struct TripsView: View {
             .searchable(text: $query, prompt: "旅行名・行き先・メモを検索")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button { showAbout = true } label: { Image(systemName: "info.circle") }.accessibilityLabel("アプリについて")
+                    Button { showSettings = true } label: { Image(systemName: "gearshape") }
+                        .accessibilityLabel("設定").accessibilityIdentifier("settings.open")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showEditor = true } label: { Image(systemName: "plus") }
@@ -67,7 +68,7 @@ struct TripsView: View {
             }
             .navigationDestination(for: UUID.self) { TripDetailView(tripID: $0) }
             .sheet(isPresented: $showEditor) { TripEditorView() }
-            .sheet(isPresented: $showAbout) { AboutView() }
+            .sheet(isPresented: $showSettings) { SettingsView() }
             .alert("お知らせ", isPresented: Binding(get: { store.errorMessage != nil }, set: { if !$0 { store.errorMessage = nil } })) {
                 Button("閉じる", role: .cancel) { store.errorMessage = nil }
             } message: { Text(store.errorMessage ?? "") }
@@ -161,6 +162,8 @@ struct AboutView: View {
                 Section {
                     Label("たびおり / Tabiori", systemImage: "paperplane.fill").font(.title3.weight(.semibold)).foregroundStyle(AppTheme.teal)
                     Text("旅の予定を、一冊のしおりのように。")
+                    Text("バージョン \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.1")")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("データと通信") {
                     Text("旅行・メモ・添付ファイルはこの端末のアプリ専用領域に保存します。アプリを削除するとデータも削除されます。")

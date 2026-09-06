@@ -38,7 +38,7 @@ struct TripDetailView: View {
                     ToolbarItem(placement: .topBarTrailing) {
                         Menu {
                             Button("旅行を編集", systemImage: "pencil") { editing = true }
-                            ShareLink(item: TripExport.text(for: trip)) { Label("旅程を共有", systemImage: "square.and.arrow.up") }
+                            ShareLink(item: TripExport.text(for: trip, includeReservationCodes: store.settings.includesReservationCodesInShare)) { Label("旅程を共有", systemImage: "square.and.arrow.up") }
                             Button("旅行を削除", systemImage: "trash", role: .destructive) { deleting = true }
                         } label: { Image(systemName: "ellipsis.circle") }.accessibilityLabel("旅行のメニュー")
                     }

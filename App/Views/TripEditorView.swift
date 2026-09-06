@@ -6,6 +6,7 @@ struct TripEditorView: View {
     @State private var draft: Trip
     @State private var budget: String
     @State private var errorMessage: String?
+    @State private var initializedDefaults = false
     private let isNew: Bool
 
     init(trip: Trip? = nil) {
@@ -43,6 +44,7 @@ struct TripEditorView: View {
                     Picker("通貨", selection: $draft.currencyCode) {
                         ForEach(currencyCodes, id: \.self) { Text($0).tag($0) }
                     }
+                    .accessibilityIdentifier("trip.currency")
                     HStack {
                         Text("旅の予算")
                         Spacer()
@@ -77,6 +79,12 @@ struct TripEditorView: View {
             .onChange(of: draft.startDate) { _, newValue in
                 if draft.endDate < newValue { draft.endDate = newValue }
             }
+            .onAppear {
+                guard isNew, !initializedDefaults else { return }
+                initializedDefaults = true
+                draft.currencyCode = store.settings.defaultCurrencyCode
+                draft.timeZoneIdentifier = store.settings.defaultTimeZoneIdentifier
+            }
             .alert("保存できませんでした", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
                 Button("OK", role: .cancel) { errorMessage = nil }
             } message: { Text(errorMessage ?? "") }
@@ -85,7 +93,7 @@ struct TripEditorView: View {
     }
 
     private var currencyCodes: [String] {
-        Array(Set(["JPY", "USD", "EUR", "GBP", "KRW", "CNY", "TWD", "THB", "AUD", "CAD", "CHF", "SGD", draft.currencyCode])).sorted()
+        Array(Set(AppSettings.currencyCodes + [draft.currencyCode])).sorted()
     }
 
     private func save() {
@@ -96,8 +104,10 @@ struct TripEditorView: View {
         draft.title = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
         draft.destination = draft.destination.trimmingCharacters(in: .whitespacesAndNewlines)
         draft.budget = value
-        if isNew && draft.checklist.isEmpty {
-            draft.checklist = ["交通機関・宿泊の予約を確認", "チケットと予約書類を保存", "充電器・モバイルバッテリー", "身分証・パスポート", "天気と持ち物を確認"].map { ChecklistItem(title: $0) }
+        if isNew {
+            draft.checklist = store.settings.addsChecklistAutomatically
+                ? store.settings.checklistTemplate.map { ChecklistItem(title: $0) }
+                : []
         }
         var candidate = draft
         if !isNew {
@@ -125,7 +135,7 @@ struct TripEditorView: View {
     }
 }
 
-private struct TimeZoneEditorView: View {
+struct TimeZoneEditorView: View {
     @Binding var selection: String
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""

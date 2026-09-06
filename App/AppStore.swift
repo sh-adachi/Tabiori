@@ -6,8 +6,11 @@ final class AppStore {
     private(set) var trips: [Trip] = []
     var errorMessage: String?
     private(set) var loadFailed = false
+    private(set) var settings = AppSettings()
+    private(set) var settingsLoadFailed = false
     let attachmentRepository: AttachmentRepository
     private let repository: TravelRepository
+    private let settingsRepository: AppSettingsRepository
 
     init() {
         let testing = ProcessInfo.processInfo.arguments.contains("--uitesting")
@@ -18,8 +21,10 @@ final class AppStore {
             catch { errorMessage = "テスト用データを初期化できませんでした。\n\(error.localizedDescription)" }
         }
         repository = TravelRepository(directory: base)
+        settingsRepository = AppSettingsRepository(directory: base)
         attachmentRepository = AttachmentRepository(directory: base.appendingPathComponent("Attachments", isDirectory: true))
         reload()
+        reloadSettings()
     }
 
     func reload() {
@@ -34,6 +39,34 @@ final class AppStore {
     }
 
     func trip(id: UUID) -> Trip? { trips.first { $0.id == id } }
+
+    func reloadSettings() {
+        do {
+            settings = try settingsRepository.load()
+            settingsLoadFailed = false
+            if !loadFailed { errorMessage = nil }
+        } catch {
+            settingsLoadFailed = true
+            errorMessage = "設定を読み込めませんでした。旅行の記録はそのまま利用できます。設定画面から再読み込みしてください。\n\(error.localizedDescription)"
+        }
+    }
+
+    @discardableResult func saveSettings(_ value: AppSettings) -> Bool {
+        guard !settingsLoadFailed else {
+            errorMessage = "設定を読み込めないため、上書きを停止しています。再読み込みしてください。"
+            return false
+        }
+        do {
+            let candidate = try value.validated()
+            try settingsRepository.save(candidate)
+            settings = candidate
+            errorMessage = nil
+            return true
+        } catch {
+            errorMessage = "設定を保存できませんでした。\n\(error.localizedDescription)"
+            return false
+        }
+    }
 
     @discardableResult func save(_ trip: Trip) -> Bool {
         guard !loadFailed else {

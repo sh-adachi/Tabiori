@@ -1,4 +1,25 @@
 import SwiftUI
+import MapKit
+
+extension AppAppearance {
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
+        }
+    }
+}
+
+extension DirectionsMode {
+    var mapsValue: String {
+        switch self {
+        case .transit: return MKLaunchOptionsDirectionsModeTransit
+        case .walking: return MKLaunchOptionsDirectionsModeWalking
+        case .driving: return MKLaunchOptionsDirectionsModeDriving
+        }
+    }
+}
 
 enum AppTheme {
     static let ink = Color.primary

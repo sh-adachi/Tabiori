@@ -40,7 +40,7 @@ struct ItemDetailView: View {
                                         Button("経路を調べる", systemImage: "arrow.triangle.turn.up.right.diamond") {
                                             let mapItem = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: place.latitude, longitude: place.longitude)))
                                             mapItem.name = place.name
-                                            mapItem.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeTransit])
+                                            mapItem.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: store.settings.directionsMode.mapsValue])
                                         }
                                     }.font(.caption.weight(.medium))
                                 }

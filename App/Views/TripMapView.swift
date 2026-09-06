@@ -84,7 +84,7 @@ struct TripMapView: View {
                                 .font(.subheadline).foregroundStyle(.secondary)
                             Text(place.name).font(.subheadline.weight(.medium))
                             if !place.address.isEmpty { Text(place.address).font(.caption).foregroundStyle(.secondary) }
-                            Button(action: place.openDirections) {
+                            Button { place.openDirections(mode: store.settings.directionsMode) } label: {
                                 Label("Apple マップで経路を調べる", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
                                     .font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 5)
                             }

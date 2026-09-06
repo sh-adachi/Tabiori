@@ -1,7 +1,7 @@
 import Foundation
 
 public enum TripExport {
-    public static func text(for trip: Trip) -> String {
+    public static func text(for trip: Trip, includeReservationCodes: Bool = true) -> String {
         let date = DateFormatter()
         date.locale = Locale(identifier: "ja_JP")
         date.timeZone = trip.timeZone
@@ -43,7 +43,9 @@ public enum TripExport {
                 lines.append("  \(item.departure) → \(item.arrival)")
             }
             if !item.serviceNumber.isEmpty { lines.append("  便・列車番号: \(item.serviceNumber)") }
-            if !item.reservationCode.isEmpty { lines.append("  予約番号: \(item.reservationCode)") }
+            if includeReservationCodes && !item.reservationCode.isEmpty {
+                lines.append("  予約番号: \(item.reservationCode)")
+            }
             if let place = item.location {
                 if !place.name.isEmpty { lines.append("  場所: \(place.name)") }
                 if !place.address.isEmpty { lines.append("  住所: \(place.address)") }
