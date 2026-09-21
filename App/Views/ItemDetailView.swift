@@ -8,6 +8,8 @@ struct ItemDetailView: View {
     let itemID: UUID
     @State private var editing = false
     @State private var deleting = false
+    @State private var sourcePreview: AttachmentPreview?
+    @State private var sourceError: String?
 
     var body: some View {
         Group {
@@ -54,6 +56,18 @@ struct ItemDetailView: View {
                                 }
                             }
                         }
+                        if let sourceID = item.sourceAttachmentID,
+                           let source = trip.attachments.first(where: { $0.id == sourceID }) {
+                            Button {
+                                do {
+                                    let url = try store.attachmentRepository.url(for: source)
+                                    guard FileManager.default.fileExists(atPath: url.path) else { throw TravelDataError.attachmentMissing }
+                                    sourcePreview = AttachmentPreview(id: source.id, title: source.displayName, url: url)
+                                } catch { sourceError = error.localizedDescription }
+                            } label: {
+                                Label("読み取り元の画像を見る", systemImage: "doc.viewfinder").font(.subheadline)
+                            }.accessibilityIdentifier("item.source")
+                        }
                         NavigationLink { AttachmentsView(tripID: tripID) } label: {
                             Label("予約資料・写真を見る", systemImage: "paperclip").font(.subheadline)
                         }.padding(.vertical, 8)
@@ -72,6 +86,10 @@ struct ItemDetailView: View {
                 }.background(AppTheme.canvas).navigationTitle("予定の詳細").navigationBarTitleDisplayMode(.inline)
                     .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("編集") { editing = true }.accessibilityIdentifier("item.edit") } }
                     .sheet(isPresented: $editing) { ItemEditorView(tripID: tripID, item: item) }
+                    .sheet(item: $sourcePreview) { AttachmentPreviewView(file: $0) }
+                    .alert("画像を開けませんでした", isPresented: Binding(get: { sourceError != nil }, set: { if !$0 { sourceError = nil } })) {
+                        Button("OK", role: .cancel) { sourceError = nil }
+                    } message: { Text(sourceError ?? "") }
                     .confirmationDialog("この予定を削除しますか？", isPresented: $deleting, titleVisibility: .visible) {
                         Button("予定を削除", role: .destructive) {
                             var updated = trip

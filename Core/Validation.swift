@@ -53,8 +53,12 @@ public enum TripValidator {
         guard Set(trip.attachments.map(\.fileName)).count == trip.attachments.count else {
             throw TravelDataError.invalid("同じ添付ファイルが重複しています。")
         }
+        let attachmentIDs = Set(trip.attachments.map(\.id))
         for item in trip.items {
             try requireText(item.title, message: "予定のタイトルを入力してください。")
+            if let sourceID = item.sourceAttachmentID, !attachmentIDs.contains(sourceID) {
+                throw TravelDataError.invalid("予定の読み取り元の画像が見つかりません。")
+            }
             guard item.startDate.timeIntervalSince1970.isFinite,
                   item.startDate >= firstDay, item.startDate < afterLastDay else {
                 throw TravelDataError.invalid("予定の開始日時を旅行期間内にしてください。")

@@ -11,6 +11,18 @@ xcuserdata/
 *.ipa
 *.dSYM/
 *.xcarchive/
-Artifacts/*.log
-Artifacts/current.png
-Artifacts/*.log
+
+# Personal signing settings stay on this computer.
+Config/Signing.local.xcconfig
+
+# Only reviewed sample screenshots belong in Git.
+/Artifacts/*
+!/Artifacts/checklist.png
+!/Artifacts/documents.png
+!/Artifacts/itinerary.png
+!/Artifacts/map.png
+!/Artifacts/pdf-preview.png
+!/Artifacts/photo-preview.png
+!/Artifacts/search.png
+!/Artifacts/settings.png
+!/Artifacts/trips.png

@@ -8,15 +8,23 @@ final class AppStore {
     private(set) var loadFailed = false
     private(set) var settings = AppSettings()
     private(set) var settingsLoadFailed = false
+    let scheduleReferenceDate: Date?
     let attachmentRepository: AttachmentRepository
     private let repository: TravelRepository
     private let settingsRepository: AppSettingsRepository
 
     init() {
-        let testing = ProcessInfo.processInfo.arguments.contains("--uitesting")
+        let arguments = ProcessInfo.processInfo.arguments
+        let testing = arguments.contains("--uitesting")
+        #if DEBUG
+        let scheduleFixture = testing && arguments.contains("--schedule-fixture")
+        scheduleReferenceDate = scheduleFixture ? ISO8601DateFormatter().date(from: "2026-10-02T00:15:00Z") : nil
+        #else
+        scheduleReferenceDate = nil
+        #endif
         let base = URL.applicationSupportDirectory.appendingPathComponent(testing ? "Tabiori-UITests" : "Tabiori", isDirectory: true)
         // A reset is only permitted for the separate automation data directory.
-        if testing && ProcessInfo.processInfo.arguments.contains("--reset-data") {
+        if testing && arguments.contains("--reset-data") {
             do { if FileManager.default.fileExists(atPath: base.path) { try FileManager.default.removeItem(at: base) } }
             catch { errorMessage = "テスト用データを初期化できませんでした。\n\(error.localizedDescription)" }
         }
@@ -25,6 +33,13 @@ final class AppStore {
         attachmentRepository = AttachmentRepository(directory: base.appendingPathComponent("Attachments", isDirectory: true))
         reload()
         reloadSettings()
+        #if DEBUG
+        // Seed only the initial fixture launch so saved changes survive relaunches.
+        if scheduleFixture && arguments.contains("--reset-data") && trips.isEmpty {
+            save(SampleData.makeTrip(now: ISO8601DateFormatter().date(from: "2026-09-17T00:00:00Z")!))
+        }
+        BookingImportTestFixture.seed(in: self)
+        #endif
     }
 
     func reload() {

@@ -7,6 +7,8 @@ struct AttachmentsView: View {
     @Environment(AppStore.self) private var store
     let tripID: UUID
     @State private var selectedPhoto: PhotosPickerItem?
+    @State private var selectedBookingPhoto: PhotosPickerItem?
+    @State private var bookingSource: TravelAttachment?
     @State private var showingFiles = false
     @State private var isImporting = false
     @State private var relatedItemID: UUID?
@@ -33,6 +35,11 @@ struct AttachmentsView: View {
                     }
                     .disabled(isImporting)
                 }
+                PhotosPicker(selection: $selectedBookingPhoto, matching: .images, preferredItemEncoding: .current) {
+                    Label("画像から予定を作成", systemImage: "sparkles")
+                }
+                .disabled(isImporting || store.loadFailed || trip == nil)
+                .accessibilityIdentifier("documents.photo.schedule")
                 PhotosPicker(selection: $selectedPhoto, matching: .images, preferredItemEncoding: .current) {
                     Label("写真から追加", systemImage: "photo.on.rectangle.angled")
                 }
@@ -77,8 +84,28 @@ struct AttachmentsView: View {
                         }
                         .contextMenu {
                             Button { open(attachment) } label: { Label("開く・共有", systemImage: "doc.viewfinder") }
+                            if attachment.kind == .photo {
+                                Button { bookingSource = attachment } label: { Label("画像から予定を作成", systemImage: "sparkles") }
+                                    .disabled(store.loadFailed)
+                            }
                             Button(role: .destructive) { pendingDelete = attachment } label: { Label("削除", systemImage: "trash") }
                         }
+                    }
+                }
+                if trip.attachments.contains(where: { $0.kind == .photo }) {
+                    Section {
+                        Menu {
+                            ForEach(trip.attachments.filter { $0.kind == .photo }) { attachment in
+                                Button(attachment.displayName) { bookingSource = attachment }
+                                    .accessibilityIdentifier("booking.read.\(attachment.id)")
+                            }
+                        } label: {
+                            Label("保存した画像から予定を作成", systemImage: "sparkles")
+                        }
+                        .disabled(isImporting || store.loadFailed)
+                        .accessibilityIdentifier("booking.read.saved")
+                    } footer: {
+                        Text("日程や行き先の候補を端末内AIで読み取ります。Apple Intelligenceが利用できるiOS 26以降のiPhoneに対応します。")
                     }
                 }
             } else {
@@ -100,8 +127,14 @@ struct AttachmentsView: View {
         .onChange(of: selectedPhoto) { _, photo in
             if let photo { importPhoto(photo) }
         }
+        .onChange(of: selectedBookingPhoto) { _, photo in
+            if let photo { importPhoto(photo, createsPlans: true) }
+        }
         .sheet(item: $preview) { file in
             AttachmentPreviewView(file: file)
+        }
+        .sheet(item: $bookingSource) { attachment in
+            BookingImportView(tripID: tripID, attachment: attachment)
         }
         .confirmationDialog("この書類を削除しますか？", isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }), titleVisibility: .visible) {
             if let attachment = pendingDelete {
@@ -116,19 +149,20 @@ struct AttachmentsView: View {
         } message: { Text(errorMessage ?? "") }
     }
 
-    private func importPhoto(_ photo: PhotosPickerItem) {
+    private func importPhoto(_ photo: PhotosPickerItem, createsPlans: Bool = false) {
         guard !isImporting else { return }
         isImporting = true
         let itemID = relatedItemID
         Task { @MainActor in
-            defer { isImporting = false; selectedPhoto = nil }
+            defer { isImporting = false; selectedPhoto = nil; selectedBookingPhoto = nil }
             do {
                 guard let imported = try await photo.loadTransferable(type: ImportedPhoto.self) else { throw AttachmentImportError.invalidPhoto }
                 let name = "写真 \(Date().formatted(.dateTime.year().month().day().hour().minute())).jpg"
                 let prepared = try await Task.detached(priority: .userInitiated) {
                     try AttachmentImport.preparePhoto(imported.data, displayName: name)
                 }.value
-                try commit(prepared, itemID: itemID)
+                let attachment = try commit(prepared, itemID: createsPlans ? nil : itemID)
+                if createsPlans { bookingSource = attachment }
             } catch { errorMessage = error.localizedDescription }
         }
     }
@@ -154,7 +188,7 @@ struct AttachmentsView: View {
 
     /// Save the metadata only after writing the file. If persistence fails, remove
     /// the new file so an unsuccessful import does not leave a hidden copy behind.
-    private func commit(_ prepared: PreparedAttachment, itemID: UUID?) throws {
+    @discardableResult private func commit(_ prepared: PreparedAttachment, itemID: UUID?) throws -> TravelAttachment {
         guard var trip else { throw AttachmentImportError.message("この旅が見つかりません。") }
         let validItemID = itemID.flatMap { id in trip.items.contains(where: { $0.id == id }) ? id : nil }
         let attachment = try store.attachmentRepository.store(data: prepared.data, displayName: prepared.displayName, kind: prepared.kind, itemID: validItemID)
@@ -166,6 +200,7 @@ struct AttachmentsView: View {
             catch { throw AttachmentImportError.message("\(reason)\n読み込んだファイルの後片付けにも失敗しました：\(error.localizedDescription)") }
             throw AttachmentImportError.message(reason)
         }
+        return attachment
     }
 
     private func open(_ attachment: TravelAttachment) {
@@ -181,6 +216,9 @@ struct AttachmentsView: View {
         guard let original = trip else { return }
         var updated = original
         updated.attachments.removeAll { $0.id == attachment.id }
+        for index in updated.items.indices where updated.items[index].sourceAttachmentID == attachment.id {
+            updated.items[index].sourceAttachmentID = nil
+        }
         guard store.save(updated) else {
             errorMessage = store.errorMessage ?? "書類を削除できませんでした。"
             store.errorMessage = nil
@@ -198,13 +236,13 @@ struct AttachmentsView: View {
     }
 }
 
-private struct AttachmentPreview: Identifiable {
+struct AttachmentPreview: Identifiable {
     let id: UUID
     let title: String
     let url: URL
 }
 
-private struct AttachmentPreviewView: View {
+struct AttachmentPreviewView: View {
     @Environment(\.dismiss) private var dismiss
     let file: AttachmentPreview
 

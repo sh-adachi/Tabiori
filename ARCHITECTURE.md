@@ -1,6 +1,6 @@
 # Architecture
 
-Tabiori is a native iPhone application using SwiftUI, Observation, MapKit, PhotosUI, QuickLook, ImageIO and PDFKit. It targets iOS 17 or later, uses Swift 5 language mode, and has no third-party dependencies.
+Tabiori is a native iPhone application using SwiftUI, Observation, MapKit, PhotosUI, QuickLook, ImageIO, PDFKit, Vision and Foundation Models. It targets iOS 17 or later, uses Swift 5 language mode, and has no third-party dependencies. The optional on-device AI import requires iOS 26 and available Apple Intelligence models.
 
 Version 1.1 adds persisted application settings and defaults for newly created trips.
 
@@ -30,18 +30,29 @@ Saved directions preferences select public transit, walking or driving when open
 
 Each import commits against the latest trip value after asynchronous work. If the trip has been deleted it aborts; if the associated itinerary item has been removed it attaches the document to the trip instead. QuickLook previews local files, and the system share sheet exports them on demand.
 
+## Booking images and on-device AI
+
+`BookingExtractionService` uses Vision's accurate Japanese/English OCR and a fresh Foundation Models language-model session with guided generation. Only text recognized in the image is submitted to the on-device model. There are no external AI requests, API keys, tools, or cloud fallback. Availability is checked at runtime, while availability annotations preserve the iOS 17 deployment target. Input is limited to 1,200 Unicode scalars and output to four candidates; oversized input and additional detected bookings ask the user to split the image. Missing full dates/times remain unset, invalid calendar values and ambiguous DST times are rejected, and any assumption of the trip time zone is shown as a warning.
+
+`BookingCandidate` is an editable draft separate from persisted itinerary items. `BookingImportView` previews the original image and lets the user select/edit candidates, opt into changing the destination, and explicitly allow trip-date expansion. Final confirmation calls the pure `BookingImport.applying` function against the latest trip and persists the result once. Duplicate and date validation runs again at this boundary. Places and printed amounts are retained as notes; coordinates and expense totals are not inferred.
+
+`ItineraryItem.sourceAttachmentID` optionally links several imported plans to one source image, independently of the existing manual `TravelAttachment.itemID` association. Missing keys decode as nil in old JSON. Validation rejects dangling source links. Deleting an image clears these links while preserving plans; deleting a plan preserves the original image. Extraction failure/cancellation never removes an already imported image or saves unconfirmed candidates.
+
 ## Screens
 
 - `TripsView`: searchable upcoming/past/all trips, first-run introduction and explicit sample creation.
-- `TripDetailView`: trip summary, expense summary, document/map/checklist navigation, calendar-day itinerary.
+- `TripDetailView`: trip summary, expense summary, document/map/checklist navigation, calendar-day itinerary, and a current/next plan card while traveling.
 - `TripEditorView` / `ItemEditorView`: local drafts, validation errors, save or cancel.
 - `ItemDetailView`: transport and booking metadata, notes, location, completion and deletion.
 - `PlacePickerView` / `TripMapView`: cancellable Apple Maps search, manual coordinates, saved map annotations and directions.
 - `AttachmentsView`: import, preview, share and delete photos/PDFs.
+- `BookingImportView`: local AI extraction, original-image preview, editable candidate review and atomic addition of selected plans.
 - `ChecklistView` / `BudgetView`: preparation and expense tracking.
 - `SettingsView`: appearance, new-trip defaults, checklist template, directions and sharing preferences; save/cancel and access to About/help.
 
 All itinerary times use the trip's time zone; costs use the trip's currency without automatic conversion. Trips are limited to 366 calendar days.
+
+`TripSchedule` centralizes calendar-day enumeration, today's initial selection, and the current/next uncompleted itinerary item. During a trip, the most recently started ongoing item takes precedence; otherwise the earliest future item is shown, including later travel days. An item without an end time stops being a candidate after its start time. `TripDetailView` refreshes the time-dependent presentation every 30 seconds with `TimelineView`, preserves explicit day selection, scrolls the day picker to its selection, and uses the displayed day when creating an item.
 
 ## Testing
 
@@ -49,4 +60,8 @@ Foundation logic is exposed through the TravelCore Swift Package; AttachmentSupp
 
 The eight UI tests verified before settings were added exercise real Photos and Files pickers, persisted trips and checklist state, editing/deletion, and map locations. Two additional settings UI tests verify saved defaults across relaunch, their application to new trips only, and cancellation. Their final verification status is tracked in README.md.
 
-Xcode synchronized groups include new Swift files in App, Core and UITests automatically. The project currently selects Personal Team `92ZKW29LWX` for signing. `Scripts/deploy_iphone.sh <UDID>` builds with provisioning updates enabled, installs the signed application using `devicectl`, and launches it on the connected iPhone; another developer must select their own signing team.
+Schedule unit tests cover destination-calendar selection, daylight-saving boundaries, overnight and overlapping events, and current/next item transitions. `ScheduleUITests` uses `--schedule-fixture` with `--uitesting` in Debug builds to freeze the schedule clock and seed a sample trip on the initial `--reset-data` launch. The fixture retains saved edits on subsequent launches and never seeds normal application storage.
+
+Booking tests exercise real image OCR and deterministic draft validation. Debug-only `--booking-fixture` with `--uitesting` supplies explicit synthetic candidates for review UI tests; `--booking-live-fixture` seeds the same synthetic ticket but runs the real OCR and on-device model for the device-only `LiveBookingAITests`. Both seed paths additionally require `--reset-data` and the isolated test directory. Normal launches never activate these fixtures.
+
+Xcode synchronized groups include new Swift files in App, Core and UITests automatically. Project-level `Config/Signing.xcconfig` optionally includes the Git-ignored `Signing.local.xcconfig` for each developer's Team ID. Copy the example file and configure it before a device build. `Scripts/deploy_iphone.sh <UDID>` builds with provisioning updates enabled, installs the signed application using `devicectl`, and launches it on the connected iPhone.

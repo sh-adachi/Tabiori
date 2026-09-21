@@ -57,11 +57,13 @@ public struct ItineraryItem: Codable, Equatable, Identifiable, Sendable {
     public var cost: Double
     public var location: Place?
     public var isCompleted: Bool
+    public var sourceAttachmentID: UUID?
 
     public init(id: UUID = UUID(), title: String, kind: ItemKind = .activity, startDate: Date,
                 endDate: Date? = nil, departure: String = "", arrival: String = "",
                 serviceNumber: String = "", reservationCode: String = "", notes: String = "",
-                cost: Double = 0, location: Place? = nil, isCompleted: Bool = false) {
+                cost: Double = 0, location: Place? = nil, isCompleted: Bool = false,
+                sourceAttachmentID: UUID? = nil) {
         self.id = id
         self.title = title
         self.kind = kind
@@ -75,6 +77,7 @@ public struct ItineraryItem: Codable, Equatable, Identifiable, Sendable {
         self.cost = cost
         self.location = location
         self.isCompleted = isCompleted
+        self.sourceAttachmentID = sourceAttachmentID
     }
 }
 

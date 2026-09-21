@@ -8,15 +8,32 @@ struct TripDetailView: View {
     @State private var addingItem = false
     @State private var deleting = false
     @State private var selectedDay: Date?
+    @State private var todayScrollRequest = 0
+
+    private struct FocusDestination: Hashable {
+        let itemID: UUID
+    }
 
     var body: some View {
+        TimelineView(.periodic(from: .now, by: 30)) { context in
+            content(at: store.scheduleReferenceDate ?? context.date)
+        }
+        .navigationDestination(for: FocusDestination.self) { destination in
+            ItemDetailView(tripID: tripID, itemID: destination.itemID)
+        }
+    }
+
+    private func content(at now: Date) -> some View {
         Group {
             if let trip = store.trip(id: tripID) {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 24) {
                         tripHeader(trip)
+                        if let focus = TripSchedule(trip: trip).focus(at: now) {
+                            focusCard(focus, trip: trip)
+                        }
                         quickLinks(trip)
-                        timeline(trip)
+                        timeline(trip, now: now)
                         if !trip.notes.isEmpty {
                             PaperCard {
                                 VStack(alignment: .leading, spacing: 10) {
@@ -45,7 +62,7 @@ struct TripDetailView: View {
                 }
                 .sheet(isPresented: $editing) { TripEditorView(trip: trip) }
                 .sheet(isPresented: $addingItem) {
-                    ItemEditorView(tripID: tripID, initialDate: selectedDay.flatMap { TripDate.days(trip).contains($0) ? $0 : nil })
+                    ItemEditorView(tripID: tripID, initialDate: TripSchedule(trip: trip).selectedDay(selectedDay, at: now))
                 }
                 .confirmationDialog("「\(trip.title)」を削除しますか？", isPresented: $deleting, titleVisibility: .visible) {
                     Button("旅行と添付ファイルを削除", role: .destructive) { if store.deleteTrip(id: tripID) { dismiss() } }
@@ -54,6 +71,36 @@ struct TripDetailView: View {
                 ContentUnavailableView("旅行が見つかりません", systemImage: "suitcase")
             }
         }
+    }
+
+    private func focusCard(_ focus: TripSchedule.Focus, trip: Trip) -> some View {
+        NavigationLink(value: FocusDestination(itemID: focus.item.id)) {
+            PaperCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Label(focus.isOngoing ? "いまの予定" : "次の予定", systemImage: focus.isOngoing ? "clock.fill" : "arrow.right.circle.fill")
+                            .font(.subheadline.weight(.semibold)).foregroundStyle(AppTheme.teal)
+                        Spacer()
+                        Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                    }
+                    Text(focus.item.title).font(.title3.weight(.semibold)).foregroundStyle(AppTheme.ink)
+                        .multilineTextAlignment(.leading)
+                    Label("\(TripDate.day(focus.item.startDate, timeZone: trip.timeZone)) \(TripDate.time(focus.item.startDate, timeZone: trip.timeZone))", systemImage: focus.item.kind.symbol)
+                        .font(.subheadline.monospacedDigit()).foregroundStyle(.secondary)
+                    if focus.item.kind.isTransport && (!focus.item.departure.isEmpty || !focus.item.arrival.isEmpty) {
+                        Text("\(focus.item.departure.isEmpty ? "出発地未設定" : focus.item.departure) → \(focus.item.arrival.isEmpty ? "到着地未設定" : focus.item.arrival)")
+                            .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.leading)
+                    } else if let place = focus.item.location {
+                        Label(place.name, systemImage: "mappin").font(.caption).foregroundStyle(.secondary)
+                            .multilineTextAlignment(.leading)
+                    }
+                }
+            }
+            .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(AppTheme.teal.opacity(0.3), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("trip.schedule.focus")
+        .accessibilityHint("予定の詳細を開きます")
     }
 
     private func tripHeader(_ trip: Trip) -> some View {
@@ -110,32 +157,63 @@ struct TripDetailView: View {
             .background(AppTheme.card, in: RoundedRectangle(cornerRadius: 18))
     }
 
-    private func timeline(_ trip: Trip) -> some View {
-        let days = TripDate.days(trip)
-        let currentDay = selectedDay.flatMap { days.contains($0) ? $0 : nil } ?? days.first ?? trip.startDate
-        let items = trip.sortedItems.filter { TripDate.calendar(for: trip).isDate($0.startDate, inSameDayAs: currentDay) }
+    private func timeline(_ trip: Trip, now: Date) -> some View {
+        let schedule = TripSchedule(trip: trip)
+        let days = schedule.days
+        let today = schedule.today(at: now)
+        let currentDay = schedule.selectedDay(selectedDay, at: now)
+        let items = trip.sortedItems.filter { schedule.calendar.isDate($0.startDate, inSameDayAs: currentDay) }
         return VStack(alignment: .leading, spacing: 18) {
             HStack(alignment: .firstTextBaseline) {
                 Text("旅のスケジュール").font(.title3.weight(.bold))
+                    .accessibilityIdentifier("trip.tab.itinerary")
                 Spacer()
-                Text("\(trip.items.count) PLANS").font(.system(size: 10, weight: .semibold, design: .monospaced)).tracking(1).foregroundStyle(.secondary)
-            }.accessibilityIdentifier("trip.tab.itinerary")
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
-                    ForEach(Array(days.enumerated()), id: \.element) { index, day in
-                        Button { selectedDay = day } label: {
-                            VStack(spacing: 6) {
-                                Text("DAY \(index + 1)").font(.system(size: 10, weight: .bold, design: .monospaced))
-                                Text(TripDate.format(day, pattern: "M/d E", timeZone: trip.timeZone)).font(.subheadline.weight(.semibold))
-                            }.padding(.horizontal, 17).padding(.vertical, 12)
-                                .foregroundStyle(currentDay == day ? .white : AppTheme.ink)
-                                .background(currentDay == day ? AppTheme.teal : AppTheme.card, in: RoundedRectangle(cornerRadius: 16))
-                        }.buttonStyle(.plain).accessibilityAddTraits(currentDay == day ? .isSelected : [])
+                if today != nil {
+                    Button {
+                        selectedDay = nil
+                        todayScrollRequest += 1
+                    } label: {
+                        Label("今日", systemImage: "calendar")
+                            .font(.subheadline.weight(.semibold))
                     }
+                    .buttonStyle(.bordered)
+                    .accessibilityIdentifier("trip.schedule.today")
+                    .accessibilityHint("旅行先の今日の予定を表示します")
+                } else {
+                    Text("\(trip.items.count) PLANS").font(.system(size: 10, weight: .semibold, design: .monospaced)).tracking(1).foregroundStyle(.secondary)
+                }
+            }
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(Array(days.enumerated()), id: \.element) { index, day in
+                            Button { selectedDay = day } label: {
+                                VStack(spacing: 6) {
+                                    Text("DAY \(index + 1)\(day == today ? " ・ 今日" : "")").font(.system(size: 10, weight: .bold, design: .monospaced))
+                                    Text(TripDate.format(day, pattern: "M/d E", timeZone: trip.timeZone)).font(.subheadline.weight(.semibold))
+                                }.padding(.horizontal, 17).padding(.vertical, 12)
+                                    .foregroundStyle(currentDay == day ? .white : AppTheme.ink)
+                                    .background(currentDay == day ? AppTheme.teal : AppTheme.card, in: RoundedRectangle(cornerRadius: 16))
+                            }
+                            .buttonStyle(.plain)
+                            .id(day)
+                            .accessibilityAddTraits(currentDay == day ? .isSelected : [])
+                            .accessibilityIdentifier("trip.schedule.day.\(index)")
+                            .accessibilityValue(currentDay == day ? "選択中" : "未選択")
+                        }
+                    }
+                }
+                .onAppear { proxy.scrollTo(currentDay, anchor: .center) }
+                .onChange(of: currentDay) { _, day in
+                    withAnimation { proxy.scrollTo(day, anchor: .center) }
+                }
+                .onChange(of: todayScrollRequest) { _, _ in
+                    withAnimation { proxy.scrollTo(currentDay, anchor: .center) }
                 }
             }
             Text("\(TripDate.day(currentDay, timeZone: trip.timeZone)) ・ \(trip.timeZoneIdentifier)")
                 .font(.caption).foregroundStyle(.secondary)
+                .accessibilityIdentifier("trip.schedule.date")
             if items.isEmpty {
                 VStack(spacing: 14) {
                     Image(systemName: "calendar.badge.plus").font(.largeTitle).foregroundStyle(AppTheme.teal.opacity(0.7))

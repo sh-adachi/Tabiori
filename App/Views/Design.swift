@@ -63,23 +63,10 @@ enum TripDate {
         return formatter.string(from: NSNumber(value: value)) ?? "\(value) \(currency)"
     }
     static func calendar(for trip: Trip) -> Calendar {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = trip.timeZone
-        return calendar
+        TripSchedule(trip: trip).calendar
     }
     static func days(_ trip: Trip) -> [Date] {
-        let calendar = calendar(for: trip)
-        let start = calendar.startOfDay(for: trip.startDate)
-        let end = calendar.startOfDay(for: trip.endDate)
-        var days = [Date]()
-        var date = start
-        // Core validation caps trip length; this guard also protects a malformed draft.
-        while date <= end && days.count < 367 {
-            days.append(date)
-            guard let next = calendar.date(byAdding: .day, value: 1, to: date) else { break }
-            date = next
-        }
-        return days
+        TripSchedule(trip: trip).days
     }
 }
 
