@@ -63,10 +63,25 @@ public enum BookingImport {
 
         return trip.items.first { item in
             guard item.kind == candidate.kind, item.startDate == start else { return false }
-            if !title.isEmpty, normalized(item.title) == title { return true }
-            guard normalized(item.departure) == departure, normalized(item.arrival) == arrival else { return false }
-            return (!service.isEmpty && normalized(item.serviceNumber) == service)
-                || (!reservation.isEmpty && normalized(item.reservationCode) == reservation)
+            let itemDeparture = normalized(item.departure)
+            let itemArrival = normalized(item.arrival)
+            let itemService = normalized(item.serviceNumber)
+            let itemReservation = normalized(item.reservationCode)
+            func conflicts(_ lhs: String, _ rhs: String) -> Bool {
+                !lhs.isEmpty && !rhs.isEmpty && lhs != rhs
+            }
+            let routeMatches = itemDeparture == departure && itemArrival == arrival
+            let serviceConflicts = conflicts(itemService, service)
+            if routeMatches {
+                if !service.isEmpty, itemService == service { return true }
+                // A single booking can contain several distinct services.
+                if !reservation.isEmpty, itemReservation == reservation, !serviceConflicts { return true }
+            }
+            // Generic titles such as "ホテル" are only a fallback identity. Explicit
+            // differences must not prevent the person from importing separate bookings.
+            return !title.isEmpty && normalized(item.title) == title
+                && !conflicts(itemDeparture, departure) && !conflicts(itemArrival, arrival)
+                && !serviceConflicts && !conflicts(itemReservation, reservation)
         }
     }
 

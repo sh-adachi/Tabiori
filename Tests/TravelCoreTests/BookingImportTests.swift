@@ -170,6 +170,40 @@ final class BookingImportTests: XCTestCase {
         XCTAssertEqual(try applying([plan, unselectedDuplicate], to: trip).items.count, 2)
     }
 
+    func testSameTitleAndTimeDoNotBlockDistinctHotelReservations() throws {
+        let first = BookingCandidate(title: "ホテル", kind: .hotel,
+                                     startDate: date("2026-10-01T06:00:00Z"), reservationCode: "ROOM-1")
+        var second = first
+        second.id = UUID()
+        second.reservationCode = "ROOM-2"
+        let imported = try applying([first], to: makeTrip())
+        XCTAssertNil(BookingImport.duplicate(of: second, in: imported))
+        XCTAssertEqual(try applying([second], to: imported).items.count, 3)
+        XCTAssertEqual(try applying([first, second], to: makeTrip()).items.count, 3)
+    }
+
+    func testSameTitleAndTimeRespectExplicitRouteAndServiceDifferences() throws {
+        let first = candidate(title: "移動")
+        let imported = try applying([first], to: makeTrip())
+        var second = candidate(title: "移動")
+        second.arrival = "大阪"
+        XCTAssertNil(BookingImport.duplicate(of: second, in: imported))
+        XCTAssertNoThrow(try applying([second], to: imported))
+
+        second.arrival = first.arrival
+        second.serviceNumber = "のぞみ 102"
+        XCTAssertNil(BookingImport.duplicate(of: second, in: imported))
+        XCTAssertNoThrow(try applying([second], to: imported))
+    }
+
+    func testTitleStillDetectsDuplicateWhenOCRMissesIdentifiers() throws {
+        let first = candidate()
+        let imported = try applying([first], to: makeTrip())
+        let incomplete = BookingCandidate(title: first.title, kind: first.kind, startDate: first.startDate)
+        XCTAssertEqual(BookingImport.duplicate(of: incomplete, in: imported)?.id, first.id)
+        XCTAssertThrowsError(try applying([incomplete], to: imported))
+    }
+
     func testTravelDatesExpandOnlyWhenExplicitlyRequestedInTripTimeZone() throws {
         let trip = makeTrip()
         var early = candidate(start: "2026-09-30T14:30:00Z") // September 30, 23:30 in Tokyo.
