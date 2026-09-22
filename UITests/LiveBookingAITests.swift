@@ -33,9 +33,16 @@ final class LiveBookingAITests: XCTestCase {
         add(result)
         XCTAssertTrue(found, "端末内AIの結果がありません。\n\(app.debugDescription)")
         XCTAssertFalse((title.value as? String ?? "").isEmpty)
-        let reservation = app.textFields.matching(NSPredicate(format: "value == %@", "DEMO-ONLY")).firstMatch
+        let reservation = app.textFields.matching(NSPredicate(
+            format: "identifier BEGINSWITH %@ AND value == %@", "booking.reservation.", "DEMO-ONLY"
+        )).firstMatch
         for _ in 0..<5 where !reservation.exists { app.swipeUp() }
         XCTAssertTrue(reservation.exists, "画像に明記した予約番号を抽出できませんでした。\n\(app.debugDescription)")
+        let candidateID = String(reservation.identifier.dropFirst("booking.reservation.".count))
+        let departure = app.textFields["booking.departure.\(candidateID)"]
+        let arrival = app.textFields["booking.arrival.\(candidateID)"]
+        XCTAssertTrue((departure.value as? String ?? "").contains("東京"), "出発地が画像と一致しません。\n\(app.debugDescription)")
+        XCTAssertTrue((arrival.value as? String ?? "").contains("京都"), "到着地が画像と一致しません。\n\(app.debugDescription)")
         let details = XCTAttachment(screenshot: app.screenshot())
         details.name = "実機で抽出した予約番号"
         details.lifetime = .keepAlways

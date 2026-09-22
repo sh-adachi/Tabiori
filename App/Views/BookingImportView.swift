@@ -194,11 +194,14 @@ private struct BookingCandidateSection: View {
             Text("表示時刻：\(trip.timeZoneIdentifier)").font(.caption).foregroundStyle(.secondary)
             if candidate.kind.isTransport {
                 TextField("出発地", text: $candidate.departure)
+                    .accessibilityIdentifier("booking.departure.\(candidate.id)")
                 TextField("到着地", text: $candidate.arrival)
+                    .accessibilityIdentifier("booking.arrival.\(candidate.id)")
                 TextField("便名・列車名", text: $candidate.serviceNumber)
             }
             TextField("予約番号", text: $candidate.reservationCode)
                 .textInputAutocapitalization(.characters).autocorrectionDisabled()
+                .accessibilityIdentifier("booking.reservation.\(candidate.id)")
             TextField("施設・場所の名前", text: $candidate.placeName)
             TextField("住所", text: $candidate.placeAddress, axis: .vertical)
             TextField("メモ", text: $candidate.notes, axis: .vertical).lineLimit(2...6)

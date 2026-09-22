@@ -54,7 +54,7 @@ xcodebuild \
 cp -n Config/Signing.local.xcconfig.example Config/Signing.local.xcconfig
 ```
 
-XcodeにApple Accountを登録し、端末との信頼設定と開発者モードを有効にしてください。別の開発者が利用する場合は、必要に応じてBundle Identifierも自身のものに変更します。実機では `CODE_SIGNING_ALLOWED=NO` を指定しません。
+XcodeにApple Accountを登録し、端末との信頼設定と開発者モードを有効にしてください。初回起動時に開発者証明書が未信頼と表示された場合は、iPhoneの「設定 → 一般 → VPNとデバイス管理 → デベロッパAPP」で自分のApple Accountを信頼します。別の開発者が利用する場合は、必要に応じてBundle Identifierも自身のものに変更します。実機では `CODE_SIGNING_ALLOWED=NO` を指定しません。
 
 接続したiPhoneへの署名付きビルド、インストール、起動には補助スクリプトも使えます。XcodeにTeamのApple Accountが登録され、端末との接続・信頼設定が済んでいることが前提です。
 
@@ -118,7 +118,7 @@ Xcode 26.3でiPhoneシミュレータ向けビルドを確認済みです。設�
 
 同日のレビューで、同じタイトル・開始時刻でも予約番号や経路・便が異なる予定を、タイトル一致だけで重複と判定していた問題を修正しました。回帰テスト3件を含む単体テスト83件が成功しています。予約確認画面2件、旅行中の案内3件、既存の保存・復元1件のUIテストも再実行し、6件すべて成功しました（`Artifacts/AstraReview-20260922.xcresult`）。
 
-今回の検証範囲はMac上の単体テストとiPhoneシミュレータの画面テストとし、いずれも完了しています。Apple Intelligenceによる実際の読み取りは未検証で、実機を接続できる時点での確認事項です。`LiveBookingAITests/testOnDeviceAIReadsSampleTicket` は、架空の予約画像を実際のVisionとApple Intelligenceで読み取る実機専用テストです。Apple Intelligenceの準備ができたiPhoneを接続し、`-only-testing:TabioriUITests/LiveBookingAITests` を指定して実行できます。
+2026年9月22日、iPhone 17（iOS 27.0）で、架空の予約画像を実際のVisionとApple Intelligenceで読み取る実機専用テスト `LiveBookingAITests/testOnDeviceAIReadsSampleTicket` が成功しました。候補表示に加え、予約番号欄の `DEMO-ONLY` と同じ候補の東京→京都の経路を自動検証しています。スクリーンショットでも、画像に記載した2026年10月6日の開始9:00・終了11:15と列車名の一致を確認しました。テストは通常の旅行データと別の保存領域を使い、候補は保存せずキャンセルしています。結果はローカルの `Artifacts/AstraDeviceAI-20260922-r2.xcresult` に保存しています。再実行するには、Apple Intelligenceの準備ができたiPhoneを接続し、`-only-testing:TabioriUITests/LiveBookingAITests` を指定します。
 
 バージョン1.1（ビルド2）では、署名付き実機ビルド・インストール・起動を確認しています。開発用署名の期限が切れた場合は、実機導入スクリプトで再ビルド・再インストールしてください。
 
